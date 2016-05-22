@@ -1,0 +1,17 @@
+A volatility analysis tool which contains the following components:
+- Data loader. Load historical tick data to memory
+- Data pre_processor. Clean data, resample, fill na and etc
+- Realized volatility tool
+    - Analysis realized volatility by using different models
+        - Close to Close
+        - Yang Zhang
+        - etc
+- Volatility Prediction
+    - Predict volatility with different frequency, minute, hour, day, week and etc
+    - Time series models are used
+    - Machine learning algorithms can be applied to optimize results
+
+- Graph
+    - Generate kinds of graphs to help analysis
+
+Author: Zeyang Tao
