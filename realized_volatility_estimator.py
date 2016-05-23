@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 import pandas as pd
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 from df_map import TimeSeriesDataFrameMap, VolatilityModelsMap
 
@@ -51,15 +52,17 @@ class CloseToCloseModel(VolatilityModel):
 
 
 class VolatilityEstimator(object):
-    def __init__(self, model_type, window, clean):
+    def __init__(self, model_type, window, clean, frequency):
         """
         :param model_type:
         :param window:
         :param clean:
+        :param frequency:
         """
         self.model_type = model_type
         self.window = window
         self.clean = clean
+        self.frequency = frequency
 
     def get_estimator(self, df):
         """
@@ -67,9 +70,9 @@ class VolatilityEstimator(object):
         :return:
         """
         if len(df) <= self.window:
-            raise ValueError('Dataset is too small {size} compared to rolling windows {windows}'.format(
-                len(df),
-                self.window
+            raise ValueError('Dataset is too small {size} compared to rolling windows {window}'.format(
+                size=len(df),
+                window=self.window
             ))
 
         if self.model_type is None or self.model_type == '':
@@ -80,3 +83,45 @@ class VolatilityEstimator(object):
 
         if self.model_type == VolatilityModelsMap.CloseToClose:
             return CloseToCloseModel(df, self.window, self.clean).get_estimator()
+
+    def analyze_realized_vol(self, df, interested_start_date, interested_end_date):
+        """
+        :param df:
+        :param interested_start_date:
+        :param interested_end_date:
+        """
+        vol = self.get_estimator(df)
+        if self.frequency == '1Min':
+            groups = [vol.index.hour, vol.index.minute]
+        elif self.frequency == 'H':
+            groups = [vol.index.hour]
+        elif self.frequency == 'D':
+            groups = [vol.index.day]
+        elif self.frequency == 'M':
+            groups = [vol.index.month]
+        else:
+            raise ValueError('Unknown frequency {frequency}'.format(frequency=self.frequency))
+
+        title, xlabel = self._get_documents()
+        agg_minute = vol.groupby(groups).mean()
+        agg_plt = agg_minute[TimeSeriesDataFrameMap.Volatility].plot(
+            title=title.format(
+            start_date=interested_start_date,
+            end_date=interested_end_date))
+
+        agg_plt.set_xlabel(xlabel)
+        agg_plt.set_ylabel('Realized Volatility %')
+        plt.show()
+
+    def _get_documents(self):
+        """
+        :return:
+        """
+        if self.frequency == '1Min':
+            return 'Average intraday minute realized volatility between {start_date} and {end_date}', 'Hour-Minute'
+        elif self.frequency == 'H':
+            return 'Average intraday hourly realized volatility between {start_date} and {end_date}', 'Hour'
+        elif self.frequency == 'D':
+            return 'Average daily realized volatility between {start_date} and {end_date}', 'Day'
+        elif self.frequency == 'M':
+            return 'Average monthly realized volatility between {start_date} and {end_date}', 'Month'

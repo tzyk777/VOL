@@ -18,9 +18,9 @@ class DataPreProcessor:
         :param df: 
         """
         self._replace_outliers(df)
-        self._replace_outliers(df)
-        self._resample(df)
+        df = self._resample(df)
         self._get_returns(df)
+        return df
 
     def _replace_outliers(self, df):
         df[np.abs(df - df.mean()) > self.num_std * df.std()] = np.nan
@@ -34,7 +34,7 @@ class DataPreProcessor:
             df.fillna(method='pad', inplace=True)
 
     def _resample(self, df):
-        df = df.resample(self.frequency).last().dropna()
+        return df.resample(self.frequency).last().dropna()
 
     def _get_returns(self, df):
         df[TimeSeriesDataFrameMap.Returns] = (df[TimeSeriesDataFrameMap.Price] /

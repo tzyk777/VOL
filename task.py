@@ -1,9 +1,9 @@
 import datetime as dt
-import matplotlib.pyplot as plt
 
 from data_loader import DataLoader
 from data_preprocessor import DataPreProcessor
 from realized_volatility_estimator import VolatilityEstimator
+from data_analysis import DataAnalyzer
 from df_map import TimeSeriesDataFrameMap
 
 
@@ -28,27 +28,21 @@ class Task:
         self.interested_end_date = interested_end_date
         self.loader = DataLoader(path, start_date)
         self.pre_process = DataPreProcessor(num_std, frequency, forward)
-        self.estimator = VolatilityEstimator(model_type, window, clean)
+        self.estimator = VolatilityEstimator(model_type, window, clean, frequency)
+        self.data_analyzer = DataAnalyzer()
 
     def execute(self):
         self.loader.load()
         for symbol in self.interested_symbols:
             df = self.loader.fetch(symbol, self.interested_start_date, self.interested_end_date)
-            self.pre_process.pre_process(df)
-            vol = self.estimator.get_estimator(df)
-            agg_minute = vol.groupby([vol.index.hour, vol.index.minute]).mean()
-            agg_plt = agg_minute[TimeSeriesDataFrameMap.Volatility].plot(
-                title='Average intraday realized volatility between {start_date} and {end_date}'.format(
-                start_date=self.interested_start_date,
-                end_date=self.interested_end_date))
+            df = self.pre_process.pre_process(df)
+            self.estimator.analyze_realized_vol(df, self.interested_start_date, self.interested_end_date)
+            self.data_analyzer.analyze_data(df.copy())
 
-            agg_plt.set_xlabel('Hour-Minute')
-            agg_plt.set_ylabel('Realized Volatility %')
-            plt.show()
 
 
 def main():
-    task = Task(r'D:\programming\VOL\stockdata2.csv', dt.date(2007, 1, 1), ['a', 'b', 'c', 'd', 'e', 'f'], dt.date(2007, 1, 2), dt.date(2008, 1, 1))
+    task = Task(r'D:\programming\VOL\stockdata2.csv', dt.date(2007, 1, 1), ['a'], dt.date(2007, 1, 2), dt.date(2008, 1, 1), frequency='H')
     task.execute()
 
 if __name__ == '__main__':
