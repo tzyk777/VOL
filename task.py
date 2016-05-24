@@ -1,15 +1,19 @@
 import datetime as dt
+from sklearn.cross_validation import train_test_split
 
 from data_loader import DataLoader
 from data_preprocessor import DataPreProcessor
 from realized_volatility_estimator import VolatilityEstimator
 from data_analysis import DataAnalyzer
+from model_error_estimator import ErrorEstimator
+from models import Garch11
 from df_map import TimeSeriesDataFrameMap
+
 
 
 class Task:
     def __init__(self, path, start_date, interested_symbols, interested_start_date, interested_end_date,
-                 num_std=3, frequency='1Min', forward=True, model_type='CloseToClose', window=30, clean=True):
+                 num_std=3, frequency='1Min', forward=True, model_type='CloseToClose', clean=True):
         """
         :param path:
         :param start_date:
@@ -20,7 +24,6 @@ class Task:
         :param frequency:
         :param forward:
         :param model_type:
-        :param window:
         :param clean:
         """
         self.interested_symbols = interested_symbols
@@ -28,16 +31,19 @@ class Task:
         self.interested_end_date = interested_end_date
         self.loader = DataLoader(path, start_date)
         self.pre_process = DataPreProcessor(num_std, frequency, forward)
-        self.estimator = VolatilityEstimator(model_type, window, clean, frequency)
+        self.estimator = VolatilityEstimator(model_type, clean, frequency)
         self.data_analyzer = DataAnalyzer()
+        self.error_estimator = ErrorEstimator(Garch11('Constant', 'Garch'), self.estimator)
 
     def execute(self):
         self.loader.load()
         for symbol in self.interested_symbols:
             df = self.loader.fetch(symbol, self.interested_start_date, self.interested_end_date)
             df = self.pre_process.pre_process(df)
-            self.estimator.analyze_realized_vol(df, self.interested_start_date, self.interested_end_date)
+            self.estimator.analyze_realized_vol(df, self.interested_start_date, self.interested_end_date, 30)
             self.data_analyzer.analyze_data(df.copy())
+            train, test = df[self.interested_start_date:dt.date(2007, 4, 1)], df[dt.date(2007, 4, 1):dt.date(2007, 5, 1)]
+            self.error_estimator.estimate(train, test)
 
 
 

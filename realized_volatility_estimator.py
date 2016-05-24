@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from df_map import TimeSeriesDataFrameMap, VolatilityModelsMap
 
 
-class VolatilityModel:
+class RealizedVolModel:
     __metaclass__ = ABCMeta
 
     def __init__(self, df, window, clean):
@@ -25,7 +25,7 @@ class VolatilityModel:
         pass
 
 
-class CloseToCloseModel(VolatilityModel):
+class CloseToCloseModel(RealizedVolModel):
     def __init__(self, df, window, clean):
         """
         :param df:
@@ -38,7 +38,7 @@ class CloseToCloseModel(VolatilityModel):
         """
         :return:
         """
-        vol = pd.rolling_std(self.df[TimeSeriesDataFrameMap.Returns], window=self.window) * math.sqrt(252)
+        vol = pd.rolling_std(self.df[TimeSeriesDataFrameMap.Returns], window=self.window)
         adj_factor = math.sqrt((1.0 / (1.0 - (self.window / (self.df[TimeSeriesDataFrameMap.Returns].count() - (self.window - 1.0))) + (self.window**2 - 1.0) /
                                        (3.0 * (self.df[TimeSeriesDataFrameMap.Returns].count() - (self.window - 1.0))**2))))
         result = vol * adj_factor
@@ -52,45 +52,47 @@ class CloseToCloseModel(VolatilityModel):
 
 
 class VolatilityEstimator(object):
-    def __init__(self, model_type, window, clean, frequency):
+    def __init__(self, model_type, clean, frequency):
         """
         :param model_type:
-        :param window:
         :param clean:
         :param frequency:
         """
         self.model_type = model_type
-        self.window = window
         self.clean = clean
         self.frequency = frequency
 
-    def get_estimator(self, df):
-        """
-        :param df
-        :return:
-        """
-        if len(df) <= self.window:
-            raise ValueError('Dataset is too small {size} compared to rolling windows {window}'.format(
-                size=len(df),
-                window=self.window
-            ))
-
         if self.model_type is None or self.model_type == '':
             raise ValueError('Model type required')
+
         self.model_type = self.model_type.lower()
+
         if self.model_type not in [VolatilityModelsMap.CloseToClose]:
             raise ValueError('Acceptable realized_volatility model is required')
+        
+    def get_estimator(self, df, window):
+        """
+        :param df
+        :param window
+        :return:
+        """
+        if len(df) <= window:
+            raise ValueError('Dataset is too small {size} compared to rolling windows {window}'.format(
+                size=len(df),
+                window=window
+            ))
 
         if self.model_type == VolatilityModelsMap.CloseToClose:
-            return CloseToCloseModel(df, self.window, self.clean).get_estimator()
+            return CloseToCloseModel(df, window, self.clean).get_estimator()
 
-    def analyze_realized_vol(self, df, interested_start_date, interested_end_date):
+    def analyze_realized_vol(self, df, interested_start_date, interested_end_date, window):
         """
         :param df:
         :param interested_start_date:
         :param interested_end_date:
+        :param window:
         """
-        vol = self.get_estimator(df)
+        vol = self.get_estimator(df, window)
         if self.frequency == '1Min':
             groups = [vol.index.hour, vol.index.minute]
         elif self.frequency == 'H':

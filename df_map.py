@@ -7,6 +7,7 @@ class TimeSeriesDataFrameMap:
     Square_residuals = 'square_residuals'
     Abs_residuals = 'abs_residuals'
     Residuals = 'residuals'
+    Cond_volatility = 'cond_volatility'
 
 
 class VolatilityModelsMap:
