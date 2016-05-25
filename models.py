@@ -1,6 +1,11 @@
 from abc import ABCMeta, abstractmethod
 from arch import arch_model
 import numpy as np
+import datetime as dt
+from dateutil.relativedelta import relativedelta
+import pandas as pd
+
+from utilities import TimeSeriesDataFrameMap, get_timestamps
 
 
 class VolatilityModel:
@@ -36,7 +41,7 @@ class Garch11(VolatilityModel):
         """
         model = arch_model(df, mean=self.mean_model, lags=self.lags,
                            vol=self.vol_model, p=self.p, q=self.q, dist=self.dist)
-        res = model.fit(update_freq=100)
+        res = model.fit(update_freq=0, disp='off')
         return res
 
     @staticmethod
@@ -57,6 +62,23 @@ class Garch11(VolatilityModel):
         result_array = func(array)
         result_array = np.insert(result_array, 0, one_step)
         return np.sqrt(result_array)
+
+    def get_predictions(self, df, sample_size, frequency):
+        """
+        :param df:
+        :param sample_size:
+        :param frequency:
+        :return:
+        """
+        months = sorted(set([dt.date(d.year, d.month, 1) for d in df.index]))[-sample_size]
+        res = self.train_model(df[months:])
+        start_timestamp = df.index[-1] + dt.timedelta(days=1)
+        start_timestamp = dt.datetime(start_timestamp.year, start_timestamp.month, start_timestamp.day)
+        end_timestamp = start_timestamp + relativedelta(months=1)
+        timestamps = list(get_timestamps(start_timestamp, end_timestamp, frequency))
+        predictions = pd.DataFrame(self.vol_forecast(res, len(timestamps)), index=timestamps,
+                                   columns=[TimeSeriesDataFrameMap.Volatility])
+        return predictions
 
 
 
