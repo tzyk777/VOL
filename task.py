@@ -1,27 +1,37 @@
 import datetime as dt
-import pandas as pd
-from utilities import TimeSeriesDataFrameMap
 
-from data_loader import DataLoader, DataPreProcessor
+import pandas as pd
+
 from data_analyzer import DataAnalyzer, ErrorEstimator, VolatilityEstimator
+from data_loader import DataLoader, DataPreProcessor
 from models import Garch11
 from utilities import FrequencyMap
+from utilities import TimeSeriesDataFrameMap
 
 
 class Task:
+    """
+    Core class of this volatility library
+    It schedules each component.
+    Read raw data.
+    Pre process data.
+    Analyze data.
+    Make prediction.
+    Output results.
+    """
     def __init__(self, path, start_date, interested_symbols, interested_start_date, interested_end_date,
-                 num_std=3, frequency='1Min', forward=True, model_type='CloseToClose', clean=True):
+                 num_std=3, frequency=FrequencyMap.Minute, forward=True, model_type='CloseToClose', clean=True):
         """
-        :param path:
-        :param start_date:
-        :param interested_symbols:
-        :param interested_start_date:
-        :param interested_end_date:
-        :param num_std:
-        :param frequency:
-        :param forward:
-        :param model_type:
-        :param clean:
+        :param path: str
+        :param start_date: datetime.date
+        :param interested_symbols: list[str]
+        :param interested_start_date: datetime.date
+        :param interested_end_date: datetime.date
+        :param num_std: int
+        :param frequency: FrequencyMap
+        :param forward: boolean
+        :param model_type: str
+        :param clean: boolean
         """
         self.interested_symbols = interested_symbols
         self.interested_start_date = interested_start_date
@@ -48,11 +58,12 @@ class Task:
             output[symbol] = predictions[TimeSeriesDataFrameMap.Volatility]
             index = predictions.index
         output.set_index(index)
-        output.to_csv(r'D:\programming\VOL\predictions.csv')
+        file_name = r'D:\programming\VOL\{frequency}_predictions.csv'.format(frequency=self.frequency)
+        output.to_csv(file_name)
 
 
 def main():
-    task = Task(r'D:\programming\VOL\stockdata2.csv', dt.date(2007, 1, 1), ['a', 'b', 'c'], dt.date(2007, 1, 2), dt.date(2008, 1, 1), frequency=FrequencyMap.Hour)
+    task = Task(r'D:\programming\VOL\stockdata2.csv', dt.date(2007, 1, 1), ['a', 'b', 'c', 'd', 'e', 'f'], dt.date(2007, 1, 2), dt.date(2008, 1, 1), frequency=FrequencyMap.Minute)
     task.execute()
 
 if __name__ == '__main__':

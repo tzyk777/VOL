@@ -1,22 +1,24 @@
+import datetime as dt
+from collections import defaultdict
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from dateutil.relativedelta import relativedelta
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.stats.diagnostic import acorr_ljungbox
-import datetime as dt
-from dateutil.relativedelta import relativedelta
-from collections import defaultdict
-from abc import ABCMeta, abstractmethod
-import pandas as pd
-import math
-import numpy as np
-import matplotlib.pyplot as plt
 
-from utilities import TimeSeriesDataFrameMap, VolatilityModelsMap, FrequencyMap
-
+from utilities import TimeSeriesDataFrameMap, VolatilityModelsMap, FrequencyMap, min_sample_size
+from models import CloseToCloseModel
 
 class DataAnalyzer:
-
+    """
+    Data analysis class.
+    This class performs autocorrelation test and Ljung Box Test
+    """
     def analyze_data(self, df):
         """
-        :param df:
+        :param df: pandas.DataFrame
         """
         self.get_residuals(df)
         self.draw_ACFs(df)
@@ -24,6 +26,9 @@ class DataAnalyzer:
 
     @staticmethod
     def get_residuals(df):
+        """
+        :param df: pandas.DataFrame
+        """
         df[TimeSeriesDataFrameMap.Residuals] = df[TimeSeriesDataFrameMap.Returns] - df[TimeSeriesDataFrameMap.Returns].mean()
         df[TimeSeriesDataFrameMap.Abs_residuals] = df[TimeSeriesDataFrameMap.Residuals].abs()
         df[TimeSeriesDataFrameMap.Square_residuals] = df[TimeSeriesDataFrameMap.Residuals]**2
@@ -31,7 +36,7 @@ class DataAnalyzer:
     @staticmethod
     def draw_ACFs(df):
         """
-        :param df:
+        :param df: pandas.DataFrame
         """
         def label(ax, string):
             ax.annotate(string, (1, 1), xytext=(-8, -8), ha='right', va='top',
@@ -59,7 +64,7 @@ class DataAnalyzer:
     @staticmethod
     def test_autocorr(df):
         """
-        :param df:
+        :param df: pandas.DataFrame
         """
         lbvalue, pvalue, bpvalue, bppvalue = acorr_ljungbox(df[TimeSeriesDataFrameMap.Square_residuals], lags=10, boxpierce=True)
         print('Ljung Box Test')
@@ -69,11 +74,15 @@ class DataAnalyzer:
 
 
 class ErrorEstimator:
+    """
+    Helper class that can help us determine the best sample size for model training.
+    Calculate errors between realized volatility and estimated volatility.
+    """
     def __init__(self, model, realized_vol_estimator, frequency):
         """
-        :param model:
-        :param realized_vol_estimator:
-        :param frequency:
+        :param model: VolatilityModel
+        :param realized_vol_estimator: VolatilityEstimator
+        :param frequency: FrequencyMap
         """
         self.model = model
         self.realized_vol_estimator = realized_vol_estimator
@@ -81,9 +90,9 @@ class ErrorEstimator:
 
     def _get_estimated_errors(self, train_df, test_df):
         """
-        :param train_df:
-        :param test_df:
-        :return:
+        :param train_df: pandas.DataFrame
+        :param test_df: pandas.DataFrame
+        :return: float
         """
         param = self.model.train_model(train_df)
         predictions = self.model.vol_forecast(param, len(test_df))
@@ -97,9 +106,12 @@ class ErrorEstimator:
 
     def get_best_sample_size(self, df):
         """
-        :param df:
-        :return:
+        :param df: pandas.DataFrame
+        :return: tuple
         """
+        if len(df[TimeSeriesDataFrameMap.Returns]) <= min_sample_size:
+            return len(df[TimeSeriesDataFrameMap.Returns]), 0.0
+
         errors = defaultdict(list)
         months = sorted(set([dt.date(d.year, d.month, 1) for d in df.index]))
         for length in range(1, len(months)):
@@ -119,56 +131,16 @@ class ErrorEstimator:
         return sample_size, min_error
 
 
-class RealizedVolModel:
-    __metaclass__ = ABCMeta
-
-    def __init__(self, df, window, clean):
-        """
-        :param df:
-        :param window:
-        :param clean:
-        """
-        self.df = df
-        self.window = window
-        self.clean = clean
-
-    @abstractmethod
-    def get_estimator(self):
-        pass
-
-
-class CloseToCloseModel(RealizedVolModel):
-    def __init__(self, df, window, clean):
-        """
-        :param df:
-        :param window:
-        :param clean:
-        """
-        super().__init__(df, window, clean)
-
-    def get_estimator(self):
-        """
-        :return:
-        """
-        vol = pd.Series.rolling(self.df[TimeSeriesDataFrameMap.Returns], window=self.window).std()
-        adj_factor = math.sqrt((1.0 / (1.0 - (self.window / (self.df[TimeSeriesDataFrameMap.Returns].count() - (self.window - 1.0))) + (self.window**2 - 1.0) /
-                                       (3.0 * (self.df[TimeSeriesDataFrameMap.Returns].count() - (self.window - 1.0))**2))))
-        result = vol * adj_factor
-        result[:self.window-1] = np.nan
-        result = pd.DataFrame(data=result)
-        result.columns = [TimeSeriesDataFrameMap.Volatility]
-        if self.clean:
-            return result.dropna()
-        else:
-            return result
-
-
 class VolatilityEstimator(object):
+    """
+    Volatility analysis class.
+    Analyze realized volatility by using provided models and parameters.
+    """
     def __init__(self, model_type, clean, frequency):
         """
-        :param model_type:
-        :param clean:
-        :param frequency:
+        :param model_type: RealizedVolModel
+        :param clean: boolean
+        :param frequency: int
         """
         self.model_type = model_type
         self.clean = clean
@@ -184,9 +156,9 @@ class VolatilityEstimator(object):
 
     def get_realized_vol(self, df, window):
         """
-        :param df
-        :param window
-        :return:
+        :param df: pandas.DataFrame
+        :param window: int
+        :return: pandas.DataFrame
         """
         if len(df) <= window:
             raise ValueError('Dataset is too small {size} compared to rolling windows {window}'.format(
@@ -199,10 +171,10 @@ class VolatilityEstimator(object):
 
     def analyze_realized_vol(self, df, interested_start_date, interested_end_date, window):
         """
-        :param df:
-        :param interested_start_date:
-        :param interested_end_date:
-        :param window:
+        :param df: pandas.DataFrame
+        :param interested_start_date: datetime.datetime
+        :param interested_end_date: datetime.datetime
+        :param window: int
         """
         vol = self.get_realized_vol(df, window)
         if self.frequency == FrequencyMap.Minute:
@@ -229,7 +201,7 @@ class VolatilityEstimator(object):
 
     def _get_documents(self):
         """
-        :return:
+        :return: str
         """
         if self.frequency == '1Min':
             return 'Average intraday minute realized volatility between {start_date} and {end_date}', 'Hour-Minute'

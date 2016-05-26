@@ -1,5 +1,9 @@
 import datetime as dt
 
+from dateutil.relativedelta import relativedelta
+
+min_sample_size = 20
+
 
 class TimeSeriesDataFrameMap:
     Symbol = 'symbol'
@@ -26,6 +30,12 @@ class FrequencyMap:
 
 
 def get_timestamps(start_timestamp, end_timestamp, frequency):
+    """
+    :param start_timestamp: datetime.datetime
+    :param end_timestamp: datetime.datetime
+    :param frequency: FrequencyMap
+    :return: Generator
+    """
     current_timestamp = start_timestamp
     if frequency == FrequencyMap.Minute:
         delta = dt.timedelta(minutes=1)
@@ -34,7 +44,7 @@ def get_timestamps(start_timestamp, end_timestamp, frequency):
     elif frequency == FrequencyMap.Day:
         delta = dt.timedelta(days=1)
     elif frequency == FrequencyMap.Month:
-        delta = dt.timedelta(days=25)
+        delta = relativedelta(months=1)
     else:
         raise ValueError('Unknown frequency {frequency}'.format(frequency=frequency))
 
